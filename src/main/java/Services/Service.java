@@ -15,12 +15,13 @@ public class Service {
 	public Date entryDate;
 	public boolean leader;
 
-	public static final String BASIC_IP = "10.3.54.";
+	public static final String BASIC_IP = "192.168.1.";
 	public static final int INICIAL_IP_POSITION = 2;
 	public static final int FINAL_IP_POSITION = 255;
 	public static final int COMMUNICATION_PORT = 6000;
 	public static final int LIST_SERVICES_PORT = 6001;
 	public static final int UPDATE_SERVICES_PORT = 6002;
+	public static final int TIMEOUT = 20;
 	public static final int LEADER = 1;
 
 	public Service(String ip) {
@@ -32,33 +33,40 @@ public class Service {
 	public ArrayList<Service> initialConnection() {
 		ArrayList<Service> services = getServices();
 
-		updateServices(services);
-		
+		if (!this.leader) {
+			services = updateServices(services);
+		}
+
 		return services;
 	}
 
-	private void updateServices(ArrayList<Service> services) {
-		for (int i = INICIAL_IP_POSITION; i < FINAL_IP_POSITION; i++) {
-			String ip = BASIC_IP + i;
+	public ArrayList<Service> updateServices(ArrayList<Service> services) {
+		for (int i = 0; i < services.size(); i++) {
+			Service service = services.get(i);
+			if (service.ip == this.ip) {
+				continue;
+			}
 			try {
-				Socket client = new Socket(ip, UPDATE_SERVICES_PORT);
+				Socket client = new Socket(service.ip, UPDATE_SERVICES_PORT);
 
 				ObjectInputStream entrada = new ObjectInputStream(client.getInputStream());
 				ObjectOutputStream saida = new ObjectOutputStream(client.getOutputStream());
 
 				saida.flush();
 				saida.writeObject(services);
-				
+
 				entrada.close();
 				saida.close();
 				client.close();
 
-			} catch (UnknownHostException e) {
+			} catch (Exception e) {
 				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
+				services.remove(service);
+				i = 0;
 			}
 		}
+
+		return services;
 
 	}
 
@@ -67,7 +75,8 @@ public class Service {
 		for (int i = INICIAL_IP_POSITION; i < FINAL_IP_POSITION; i++) {
 			String ip = BASIC_IP + i;
 			try {
-				Socket client = new Socket(ip, LIST_SERVICES_PORT);
+				Socket client = new Socket();
+				client.connect(new java.net.InetSocketAddress(ip, LIST_SERVICES_PORT), TIMEOUT);
 
 				ObjectInputStream entrada = new ObjectInputStream(client.getInputStream());
 				ObjectOutputStream saida = new ObjectOutputStream(client.getOutputStream());
@@ -79,12 +88,8 @@ public class Service {
 				client.close();
 
 				break;
-			} catch (UnknownHostException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
-			} catch (ClassNotFoundException e) {
-				// TODO Auto-generated catch block
+			} catch (Exception e) {
+				System.out.println("Não foi possível conectar ao ip: " + ip);
 				e.printStackTrace();
 			}
 		}
@@ -96,5 +101,26 @@ public class Service {
 		services.add(this);
 
 		return services;
+	}
+
+	public boolean sendMessageToLeader(String resposta, String ip) {
+		try {
+			Socket client = new Socket(ip, COMMUNICATION_PORT);
+
+			ObjectInputStream entrada = new ObjectInputStream(client.getInputStream());
+			ObjectOutputStream saida = new ObjectOutputStream(client.getOutputStream());
+
+			saida.flush();
+			saida.writeObject(resposta);
+
+			entrada.close();
+			saida.close();
+			client.close();
+
+			return true;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return false;
+		}
 	}
 }

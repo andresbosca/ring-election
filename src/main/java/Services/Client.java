@@ -49,11 +49,11 @@ public class Client {
 							ObjectInputStream entrada = new ObjectInputStream(cliente.getInputStream());
 
 							System.out.println("communicate - Recebendo a mensagem");
-							int resposta = (int) entrada.readObject();
+							String resposta = (String) entrada.readObject();
 
-							services.sort((s1, s2) -> s1.entryDate.compareTo(s2.entryDate));
+							services.sort((s1, s2) -> s1.entryDate.compareTo(s2.entryDate) > 0 ? 1 : -1);
 
-							if (services.get(0).ip != service.ip) {
+							if (!services.get(0).ip.equals(service.ip)) {
 								service.leader = false;
 
 								boolean leaderFound = false;
@@ -64,7 +64,7 @@ public class Client {
 										leaderFound = true;
 										break;
 									}
-									// leaderFound = service.sendMessageToLeader(resposta, services.get(0).ip);
+									leaderFound = service.sendMessageToLeader(resposta, services.get(0).ip);
 									if (!leaderFound) {
 										servicesChanged = true;
 										services.remove(0);
@@ -72,13 +72,14 @@ public class Client {
 								}
 							}
 
-							if (services.get(0).ip == service.ip) {
+							if (services.get(0).ip.equals(service.ip)) {
 								service.leader = true;
 								System.out.println(resposta);
 							}
 
 							System.out.println("communicate - Conexão encerrada");
-
+							saida.flush();
+							saida.writeObject("OK");
 							saida.close();
 							entrada.close();
 							cliente.close();
@@ -111,13 +112,17 @@ public class Client {
 
 							System.out.println("sendServices - Cliente : " + cliente.getInetAddress().getHostAddress());
 							ObjectOutputStream saida = new ObjectOutputStream(cliente.getOutputStream());
+							ObjectInputStream entrada = new ObjectInputStream(cliente.getInputStream());
 
 							System.out.println("sendServices - Limpando o buffer e enviando mensagem");
+
 							saida.flush();
 							saida.writeObject(services);
 
 							System.out.println("sendServices - Conexão encerrada");
+							entrada.readObject();
 
+							entrada.close();
 							saida.close();
 							cliente.close();
 						} catch (Exception ex) {

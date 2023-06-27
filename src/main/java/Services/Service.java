@@ -9,19 +9,20 @@ import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
+import java.io.Serializable;
 
-public class Service {
+public class Service implements Serializable {
 	public String ip;
 	public Date entryDate;
 	public boolean leader;
 
 	public static final String BASIC_IP = "192.168.1.";
-	public static final int INICIAL_IP_POSITION = 2;
-	public static final int FINAL_IP_POSITION = 255;
+	public static final int INICIAL_IP_POSITION = 100;
+	public static final int FINAL_IP_POSITION = 110;
 	public static final int COMMUNICATION_PORT = 6000;
 	public static final int LIST_SERVICES_PORT = 6001;
 	public static final int UPDATE_SERVICES_PORT = 6002;
-	public static final int TIMEOUT = 20;
+	public static final int TIMEOUT = 100;
 	public static final int LEADER = 1;
 
 	public Service(String ip) {
@@ -55,6 +56,8 @@ public class Service {
 				saida.flush();
 				saida.writeObject(services);
 
+				entrada.readObject();
+
 				entrada.close();
 				saida.close();
 				client.close();
@@ -83,6 +86,8 @@ public class Service {
 
 				services = (ArrayList<Service>) entrada.readObject();
 
+				saida.flush();
+				saida.writeObject("recebido");
 				entrada.close();
 				saida.close();
 				client.close();
@@ -90,13 +95,23 @@ public class Service {
 				break;
 			} catch (Exception e) {
 				System.out.println("Não foi possível conectar ao ip: " + ip);
-				e.printStackTrace();
+				// e.printStackTrace();
 			}
 		}
 
 		if (services.size() == 0) {
 			this.leader = true;
 		}
+		int found = 0;
+
+		for (int i = 0; i < services.size(); i++) {
+			if (services.get(i).ip == this.ip) {
+				found = i;
+				break;
+			}
+		}
+		if (found != 0)
+			services.remove(found);
 
 		services.add(this);
 
@@ -112,6 +127,8 @@ public class Service {
 
 			saida.flush();
 			saida.writeObject(resposta);
+
+			entrada.readObject();
 
 			entrada.close();
 			saida.close();

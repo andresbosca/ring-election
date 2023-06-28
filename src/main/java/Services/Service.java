@@ -12,132 +12,143 @@ import java.util.Date;
 import java.io.Serializable;
 
 public class Service implements Serializable {
-	public String ip;
-	public Date entryDate;
-	public boolean leader;
 
-	public static final String BASIC_IP = "192.168.1.";
-	public static final int INICIAL_IP_POSITION = 100;
-	public static final int FINAL_IP_POSITION = 110;
-	public static final int COMMUNICATION_PORT = 6000;
-	public static final int LIST_SERVICES_PORT = 6001;
-	public static final int UPDATE_SERVICES_PORT = 6002;
-	public static final int TIMEOUT = 100;
-	public static final int LEADER = 1;
+    public String ip;
+    public Date entryDate;
+    public boolean leader;
 
-	public Service(String ip) {
-		this.ip = ip;
-		this.leader = false;
-		entryDate = Date.from(Instant.now());
-	}
+    public static final String BASIC_IP = "10.3.54.";
+    public static final int INICIAL_IP_POSITION = 2;
+    public static final int FINAL_IP_POSITION = 60;
+    public static final int COMMUNICATION_PORT = 6000;
+    public static final int LIST_SERVICES_PORT = 6001;
+    public static final int UPDATE_SERVICES_PORT = 6002;
+    public static final int TIMEOUT = 100;
+    public static final int LEADER = 1;
 
-	public ArrayList<Service> initialConnection() {
-		ArrayList<Service> services = getServices();
+    public Service(String ip) {
+        this.ip = ip;
+        this.leader = false;
+        entryDate = Date.from(Instant.now());
+    }
 
-		if (!this.leader) {
-			services = updateServices(services);
-		}
+    public ArrayList<Service> initialConnection() {
+        ArrayList<Service> services = getServices();
 
-		return services;
-	}
+        if (!this.leader) {
+            services = updateServices(services);
+        }
 
-	public ArrayList<Service> updateServices(ArrayList<Service> services) {
-		for (int i = 0; i < services.size(); i++) {
-			Service service = services.get(i);
-			if (service.ip == this.ip) {
-				continue;
-			}
-			try {
-				Socket client = new Socket(service.ip, UPDATE_SERVICES_PORT);
+        return services;
+    }
 
-				ObjectInputStream entrada = new ObjectInputStream(client.getInputStream());
-				ObjectOutputStream saida = new ObjectOutputStream(client.getOutputStream());
+    public ArrayList<Service> updateServices(ArrayList<Service> services) {
+        for (int i = 0; i < services.size(); i++) {
+            Service service = services.get(i);
+            if (service.ip.equals(this.ip)) {
+                continue;
+            }
+            try {
+                try ( Socket client = new Socket(service.ip, UPDATE_SERVICES_PORT)) {
+                    ObjectInputStream entrada = new ObjectInputStream(client.getInputStream());
+                    ObjectOutputStream saida = new ObjectOutputStream(client.getOutputStream());
 
-				saida.flush();
-				saida.writeObject(services);
+                    saida.flush();
+                    saida.writeObject(services);
 
-				entrada.readObject();
+                    entrada.readObject();
 
-				entrada.close();
-				saida.close();
-				client.close();
+                    entrada.close();
+                    saida.close();
+                }
 
-			} catch (Exception e) {
-				e.printStackTrace();
-				services.remove(service);
-				i = 0;
-			}
-		}
+            } catch (Exception e) {
+                e.printStackTrace();
+                services.remove(service);
+                i = 0;
+            }
+        }
 
-		return services;
+        return services;
 
-	}
+    }
 
-	public ArrayList<Service> getServices() {
-		ArrayList<Service> services = new ArrayList<Service>();
-		for (int i = INICIAL_IP_POSITION; i < FINAL_IP_POSITION; i++) {
-			String ip = BASIC_IP + i;
-			try {
-				Socket client = new Socket();
-				client.connect(new java.net.InetSocketAddress(ip, LIST_SERVICES_PORT), TIMEOUT);
+    public ArrayList<Service> getServices() {
+        ArrayList<Service> services = new ArrayList<Service>();
+        for (int i = INICIAL_IP_POSITION; i < FINAL_IP_POSITION; i++) {
+            String ip = BASIC_IP + i;
+            if (ip.equals(this.ip)) {
+                continue;
+            }
 
-				ObjectInputStream entrada = new ObjectInputStream(client.getInputStream());
-				ObjectOutputStream saida = new ObjectOutputStream(client.getOutputStream());
+                System.out.println("getServices - Tentando conectar ao ip: " + ip);
+            try {
+                Socket client = new Socket();
+                client.connect(new java.net.InetSocketAddress(ip, LIST_SERVICES_PORT), TIMEOUT);
 
-				services = (ArrayList<Service>) entrada.readObject();
+                ObjectInputStream entrada = new ObjectInputStream(client.getInputStream());
+                ObjectOutputStream saida = new ObjectOutputStream(client.getOutputStream());
 
-				saida.flush();
-				saida.writeObject("recebido");
-				entrada.close();
-				saida.close();
-				client.close();
+                services = (ArrayList<Service>) entrada.readObject();
 
-				break;
-			} catch (Exception e) {
-				System.out.println("Não foi possível conectar ao ip: " + ip);
-				// e.printStackTrace();
-			}
-		}
+                saida.flush();
+                saida.writeObject("recebido");
+                entrada.close();
+                saida.close();
+                client.close();
 
-		if (services.size() == 0) {
-			this.leader = true;
-		}
-		int found = 0;
+                break;
+            } catch (Exception e) {
+                System.out.println("NÃ£o foi possÃ­vel conectar ao ip: " + ip);
+                // e.printStackTrace();
+            }
+        }
 
-		for (int i = 0; i < services.size(); i++) {
-			if (services.get(i).ip == this.ip) {
-				found = i;
-				break;
-			}
-		}
-		if (found != 0)
-			services.remove(found);
+        if (services.size() == 0) {
+            this.leader = true;
+        }
+        int found = 0;
 
-		services.add(this);
+        for (int i = 0; i < services.size(); i++) {
+            if (services.get(i).ip.equals(this.ip)) {
+                found = i;
+                break;
+            }
+        }
+        if (found != 0) {
+            services.remove(found);
+        }
 
-		return services;
-	}
+        services.add(this);
 
-	public boolean sendMessageToLeader(String resposta, String ip) {
-		try {
-			Socket client = new Socket(ip, COMMUNICATION_PORT);
+        return services;
+    }
 
-			ObjectInputStream entrada = new ObjectInputStream(client.getInputStream());
-			ObjectOutputStream saida = new ObjectOutputStream(client.getOutputStream());
+    public boolean sendMessageToLeader(String resposta, String ip) {
+        System.out.println("Mandando para o Líder: " + ip);
+        if (ip.equals(this.ip)) {
+            return true;
+        }
+        try {
+            Socket client = new Socket();
+            client.connect(new java.net.InetSocketAddress(ip, COMMUNICATION_PORT), TIMEOUT);
 
-			saida.flush();
-			saida.writeObject(resposta);
+            ObjectInputStream entrada = new ObjectInputStream(client.getInputStream());
+            ObjectOutputStream saida = new ObjectOutputStream(client.getOutputStream());
 
-			entrada.readObject();
+            saida.flush();
+            saida.writeObject(resposta);
 
-			entrada.close();
-			saida.close();
-			client.close();
+            entrada.readObject();
 
-			return true;
-		} catch (Exception e) {
-			e.printStackTrace();
-			return false;
-		}
-	}
+            entrada.close();
+            saida.close();
+            client.close();
+
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 }
